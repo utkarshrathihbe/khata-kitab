@@ -1,0 +1,186 @@
+{% extends "layout.html" %}
+
+{% block content %}
+
+<div class="cards">
+
+    <div class="card">
+        <h3>Total Income</h3>
+        <h2>₹ {{ total_income }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>Total Expense</h3>
+        <h2>₹ {{ total_expense }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>Balance</h3>
+        <h2>₹ {{ balance }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>Highest Expense</h3>
+        <h2>₹ {{ highest_expense }}</h2>
+    </div>
+
+</div>
+
+<div class="form-card">
+
+    <h2>📊 Analytics Summary</h2>
+
+    <p>
+        <strong>Top Spending Category:</strong>
+        {{ top_category }}
+    </p>
+
+</div>
+
+<div class="chart-grid">
+
+    <div class="chart-card">
+
+        <h2>Income vs Expense</h2>
+
+        <canvas id="incomeExpenseChart"></canvas>
+
+    </div>
+
+    <div class="chart-card">
+
+        <h2>Expense Breakdown</h2>
+
+        <canvas id="expensePieChart"></canvas>
+
+    </div>
+
+</div>
+
+<div class="history">
+
+    <h2>Expense By Category</h2>
+
+    <table>
+
+        <tr>
+            <th>Category</th>
+            <th>Total Expense</th>
+        </tr>
+
+        {% for row in category_data %}
+
+        <tr>
+            <td>{{ row[0] }}</td>
+            <td>₹ {{ row[1] }}</td>
+        </tr>
+
+        {% endfor %}
+
+    </table>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+
+const income = {{ total_income }};
+const expense = {{ total_expense }};
+
+new Chart(
+    document.getElementById('incomeExpenseChart'),
+    {
+        type: 'bar',
+        data: {
+            labels: ['Income', 'Expense'],
+            datasets: [{
+                data: [income, expense],
+
+                backgroundColor: [
+                    '#6b8f71',
+                    '#8b6f6f'
+                ],
+
+                borderRadius: 10
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    }
+);
+
+const pieLabels = [
+
+{% for row in category_data %}
+'{{ row[0] }}',
+{% endfor %}
+
+];
+
+const pieValues = [
+
+{% for row in category_data %}
+{{ row[1] }},
+{% endfor %}
+
+];
+
+new Chart(
+    document.getElementById('expensePieChart'),
+    {
+        type: 'doughnut',
+
+        data: {
+
+            labels: pieLabels,
+
+            datasets: [{
+
+                data: pieValues,
+
+                backgroundColor: [
+                    '#6b8f71',
+                    '#7c8da6',
+                    '#b39b6b',
+                    '#8b6f6f',
+                    '#7f8c8d',
+                    '#95a5a6',
+                    '#a1887f',
+                    '#90a4ae'
+                ],
+
+                borderWidth: 0
+
+            }]
+        },
+
+        options: {
+
+            responsive: true,
+            maintainAspectRatio: false,
+
+            plugins: {
+
+                legend: {
+                    position: 'bottom'
+                }
+
+            },
+
+            cutout: '60%'
+        }
+    }
+);
+
+</script>
+
+{% endblock %}

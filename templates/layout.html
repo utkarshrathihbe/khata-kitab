@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Khata Kitab</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+<body>
+
+    <div class="navbar">
+
+        <div class="logo">
+            💰 Khata Kitab
+        </div>
+
+        <div class="nav-links">
+
+            <a href="/">Dashboard</a>
+
+            <a href="/reports">Reports</a>
+
+            <a href="/export">Export CSV</a>
+
+        </div>
+
+    </div>
+
+    <div class="container">
+
+        {% block content %}
+        {% endblock %}
+
+    </div>
+
+</body>
+
+</html>

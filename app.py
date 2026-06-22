@@ -26,8 +26,10 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = "login"
 
+
 def get_db():
     return sqlite3.connect("khatakitab.db")
+
 
 class User(UserMixin):
 
@@ -50,17 +52,13 @@ def load_user(user_id):
     """, (user_id,))
 
     row = cur.fetchone()
-
     conn.close()
 
     if row:
-        return User(
-            row[0],
-            row[1],
-            row[2]
-        )
+        return User(row[0], row[1], row[2])
 
     return None
+
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -74,60 +72,38 @@ def signup():
         conn = get_db()
         cur = conn.cursor()
 
-        cur.execute(
-            "SELECT id FROM users WHERE email=?",
-            (email,)
-        )
-
+        cur.execute("SELECT id FROM users WHERE email=?", (email,))
         existing_user = cur.fetchone()
 
         if existing_user:
-
             conn.close()
-
             flash("Email already registered")
-
             return redirect("/signup")
 
         password_hash = generate_password_hash(password)
 
         cur.execute("""
-            INSERT INTO users(
-                name,
-                email,
-                password_hash
-            )
+            INSERT INTO users(name, email, password_hash)
             VALUES (?, ?, ?)
-        """, (
-            name,
-            email,
-            password_hash
-        ))
+        """, (name, email, password_hash))
 
         conn.commit()
-
         user_id = cur.lastrowid
-
         conn.close()
 
-        user = User(
-            user_id,
-            name,
-            email
-        )
-
+        user = User(user_id, name, email)
         login_user(user)
 
         return redirect("/")
 
-    return render_template("signup.html")  # FIX 1: ye POST block ke bahar, GET ke liye
+    return render_template("signup.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
 
     if current_user.is_authenticated:
-        return redirect("/")  # FIX 2: return ka indentation theek kiya
+        return redirect("/")
 
     if request.method == "POST":
 
@@ -138,97 +114,77 @@ def login():
         cur = conn.cursor()
 
         cur.execute("""
-            SELECT
-                id,
-                name,
-                email,
-                password_hash
+            SELECT id, name, email, password_hash
             FROM users
             WHERE email=?
         """, (email,))
 
         row = cur.fetchone()
-
         conn.close()
 
-        if row and check_password_hash(
-            row[3],
-            password
-        ):
-
-            user = User(
-                row[0],
-                row[1],
-                row[2]
-            )
-
+        if row and check_password_hash(row[3], password):
+            user = User(row[0], row[1], row[2])
             login_user(user)
-
             return redirect("/")
 
         flash("Invalid email or password")
 
-    return render_template("login.html")  # FIX 3: ye POST block ke bahar, GET ke liye
+    return render_template("login.html")
 
 
 @app.route("/logout")
 @login_required
 def logout():
-
-    logout_user()  # FIX 4: logout_user() function ke andar
-
-    return redirect("/login")  # FIX 5: return bhi andar
+    logout_user()
+    return redirect("/login")
 
 
-
-def generate_charts():
+def generate_charts(user_id):
+    """Generate charts only for the given user's transactions."""
 
     conn = get_db()
     cur = conn.cursor()
 
-    # Income Total
+    # FIX: Filter by user_id
     cur.execute("""
-        SELECT COALESCE(SUM(amount),0)
+        SELECT COALESCE(SUM(amount), 0)
         FROM transactions
-        WHERE transaction_type='Income'
-    """)
+        WHERE transaction_type='Income' AND user_id=?
+    """, (user_id,))
     income = cur.fetchone()[0]
 
-    # Expense Total
     cur.execute("""
-        SELECT COALESCE(SUM(amount),0)
+        SELECT COALESCE(SUM(amount), 0)
         FROM transactions
-        WHERE transaction_type='Expense'
-    """)
+        WHERE transaction_type='Expense' AND user_id=?
+    """, (user_id,))
     expense = cur.fetchone()[0]
 
     os.makedirs("static/charts", exist_ok=True)
 
     # Bar Chart
-    plt.figure(figsize=(5,4))
+    plt.figure(figsize=(5, 4))
     plt.bar(["Income", "Expense"], [income, expense])
     plt.title("Income vs Expense")
     plt.tight_layout()
     plt.savefig("static/charts/income_expense.png")
     plt.close()
 
-    # Pie Chart
+    # Pie Chart — FIX: Filter by user_id
     cur.execute("""
-        SELECT category,
-               SUM(amount)
+        SELECT category, SUM(amount)
         FROM transactions
-        WHERE transaction_type='Expense'
+        WHERE transaction_type='Expense' AND user_id=?
         GROUP BY category
-    """)
+    """, (user_id,))
 
     rows = cur.fetchall()
 
     if rows:
-
         labels = [row[0] for row in rows]
         values = [row[1] for row in rows]
 
-        plt.figure(figsize=(6,6))
+        plt.figure(figsize=(6, 6))
         plt.pie(values, labels=labels, autopct="%1.1f%%")
         plt.title("Expense Categories")
         plt.tight_layout()
@@ -239,55 +195,66 @@ def generate_charts():
 
 
 @app.route("/")
+@login_required  # FIX: Protect home route
 def home():
 
     search = request.args.get("search", "")
+    user_id = current_user.id  # FIX: Get logged-in user's ID
 
     conn = get_db()
     cur = conn.cursor()
 
     if search:
-
+        # FIX: AND user_id=? added to every query
         cur.execute("""
             SELECT *
             FROM transactions
-            WHERE category LIKE ?
-               OR note LIKE ?
-               OR transaction_type LIKE ?
+            WHERE user_id=?
+              AND (
+                category LIKE ?
+                OR note LIKE ?
+                OR transaction_type LIKE ?
+              )
             ORDER BY transaction_date DESC, id DESC
         """, (
+            user_id,
             f"%{search}%",
             f"%{search}%",
             f"%{search}%"
         ))
 
     else:
-
         cur.execute("""
             SELECT *
             FROM transactions
+            WHERE user_id=?
             ORDER BY transaction_date DESC, id DESC
-        """)
+        """, (user_id,))
 
     transactions = cur.fetchall()
 
+    # FIX: All summary queries filter by user_id
     cur.execute("""
-        SELECT COALESCE(SUM(amount),0)
+        SELECT COALESCE(SUM(amount), 0)
         FROM transactions
-        WHERE transaction_type='Income'
-    """)
+        WHERE transaction_type='Income' AND user_id=?
+    """, (user_id,))
     total_income = cur.fetchone()[0]
 
     cur.execute("""
-        SELECT COALESCE(SUM(amount),0)
+        SELECT COALESCE(SUM(amount), 0)
         FROM transactions
-        WHERE transaction_type='Expense'
-    """)
+        WHERE transaction_type='Expense' AND user_id=?
+    """, (user_id,))
     total_expense = cur.fetchone()[0]
 
     balance = total_income - total_expense
 
-    cur.execute("SELECT COUNT(*) FROM transactions")
+    cur.execute("""
+        SELECT COUNT(*)
+        FROM transactions
+        WHERE user_id=?
+    """, (user_id,))
     transaction_count = cur.fetchone()[0]
 
     conn.close()
@@ -304,26 +271,30 @@ def home():
 
 
 @app.route("/add", methods=["POST"])
+@login_required  # FIX: Protect add route
 def add():
 
     conn = get_db()
     cur = conn.cursor()
 
+    # FIX: Insert user_id with the transaction
     cur.execute("""
         INSERT INTO transactions(
             transaction_date,
             transaction_type,
             amount,
             category,
-            note
+            note,
+            user_id
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
     """, (
         request.form["transaction_date"],
         request.form["transaction_type"],
         request.form["amount"],
         request.form["category"],
-        request.form["note"]
+        request.form["note"],
+        current_user.id   # FIX: Bind to logged-in user
     ))
 
     conn.commit()
@@ -333,14 +304,16 @@ def add():
 
 
 @app.route("/delete/<int:id>")
+@login_required  # FIX: Protect delete route
 def delete(id):
 
     conn = get_db()
     cur = conn.cursor()
 
+    # FIX: Only delete if it belongs to current user
     cur.execute(
-        "DELETE FROM transactions WHERE id=?",
-        (id,)
+        "DELETE FROM transactions WHERE id=? AND user_id=?",
+        (id, current_user.id)
     )
 
     conn.commit()
@@ -350,6 +323,7 @@ def delete(id):
 
 
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
+@login_required  # FIX: Protect edit route
 def edit(id):
 
     conn = get_db()
@@ -357,6 +331,7 @@ def edit(id):
 
     if request.method == "POST":
 
+        # FIX: Only update if it belongs to current user
         cur.execute("""
             UPDATE transactions
             SET transaction_date=?,
@@ -364,14 +339,15 @@ def edit(id):
                 amount=?,
                 category=?,
                 note=?
-            WHERE id=?
+            WHERE id=? AND user_id=?
         """, (
             request.form["transaction_date"],
             request.form["transaction_type"],
             request.form["amount"],
             request.form["category"],
             request.form["note"],
-            id
+            id,
+            current_user.id   # FIX: Ownership check
         ))
 
         conn.commit()
@@ -379,80 +355,77 @@ def edit(id):
 
         return redirect("/")
 
+    # FIX: Only fetch if it belongs to current user
     cur.execute(
-        "SELECT * FROM transactions WHERE id=?",
-        (id,)
+        "SELECT * FROM transactions WHERE id=? AND user_id=?",
+        (id, current_user.id)
     )
 
     txn = cur.fetchone()
-
     conn.close()
 
-    return render_template(
-        "edit.html",
-        txn=txn
-    )
+    if not txn:
+        flash("Transaction not found.")
+        return redirect("/")
+
+    return render_template("edit.html", txn=txn)
 
 
 @app.route("/reports")
+@login_required  # FIX: Protect reports route
 def reports():
 
-    generate_charts()
+    user_id = current_user.id  # FIX: Scope to current user
+    generate_charts(user_id)
 
     conn = get_db()
     cur = conn.cursor()
 
+    # FIX: All queries filter by user_id
     cur.execute("""
-        SELECT COALESCE(SUM(amount),0)
+        SELECT COALESCE(SUM(amount), 0)
         FROM transactions
-        WHERE transaction_type='Income'
-    """)
+        WHERE transaction_type='Income' AND user_id=?
+    """, (user_id,))
     total_income = cur.fetchone()[0]
 
     cur.execute("""
-        SELECT COALESCE(SUM(amount),0)
+        SELECT COALESCE(SUM(amount), 0)
         FROM transactions
-        WHERE transaction_type='Expense'
-    """)
+        WHERE transaction_type='Expense' AND user_id=?
+    """, (user_id,))
     total_expense = cur.fetchone()[0]
 
     balance = total_income - total_expense
 
     cur.execute("""
-        SELECT COALESCE(MAX(amount),0)
+        SELECT COALESCE(MAX(amount), 0)
         FROM transactions
-        WHERE transaction_type='Expense'
-    """)
+        WHERE transaction_type='Expense' AND user_id=?
+    """, (user_id,))
     highest_expense = cur.fetchone()[0]
 
     cur.execute("""
-        SELECT category,
-               SUM(amount) total
+        SELECT category, SUM(amount) total
         FROM transactions
-        WHERE transaction_type='Expense'
+        WHERE transaction_type='Expense' AND user_id=?
         GROUP BY category
         ORDER BY total DESC
         LIMIT 1
-    """)
+    """, (user_id,))
 
     top_row = cur.fetchone()
-
-    if top_row:
-        top_category = top_row[0]
-    else:
-        top_category = "No Data"
+    top_category = top_row[0] if top_row else "No Data"
 
     cur.execute("""
-        SELECT category,
-               ROUND(SUM(amount),2)
+        SELECT category, ROUND(SUM(amount), 2)
         FROM transactions
-        WHERE transaction_type='Expense'
+        WHERE transaction_type='Expense' AND user_id=?
         GROUP BY category
         ORDER BY SUM(amount) DESC
-    """)
+    """, (user_id,))
 
     category_data = cur.fetchall()
-
     conn.close()
 
     return render_template(
@@ -467,11 +440,13 @@ def reports():
 
 
 @app.route("/export")
+@login_required  # FIX: Protect export route
 def export_csv():
 
     conn = get_db()
     cur = conn.cursor()
 
+    # FIX: Only export current user's transactions
     cur.execute("""
         SELECT
             transaction_date,
@@ -480,32 +455,23 @@ def export_csv():
             category,
             note
         FROM transactions
-    """)
+        WHERE user_id=?
+    """, (current_user.id,))
 
     rows = cur.fetchall()
-
     conn.close()
 
     output = StringIO()
-
     writer = csv.writer(output)
 
-    writer.writerow([
-        "Date",
-        "Type",
-        "Amount",
-        "Category",
-        "Note"
-    ])
-
+    writer.writerow(["Date", "Type", "Amount", "Category", "Note"])
     writer.writerows(rows)
 
     return Response(
         output.getvalue(),
         mimetype="text/csv",
         headers={
-            "Content-Disposition":
-            "attachment; filename=khatakitab.csv"
+            "Content-Disposition": "attachment; filename=khatakitab.csv"
         }
     )
 

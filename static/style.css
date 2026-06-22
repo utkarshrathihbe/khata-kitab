@@ -199,7 +199,6 @@ height:240px !important;
 
 @media (max-width:768px){
 
-```
 .navbar{
     flex-direction:column;
     gap:12px;
@@ -227,7 +226,6 @@ height:240px !important;
 .chart-card{
     height:300px;
 }
-```
 
 }
 .landing-navbar{

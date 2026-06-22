@@ -139,6 +139,57 @@ def profile():
 
     return render_template("profile.html", user_data=user_data)
 
+@app.route("/change-password", methods=["POST"])
+@login_required
+def change_password():
+
+    current_password = request.form["current_password"]
+    new_password = request.form["new_password"]
+    confirm_password = request.form["confirm_password"]
+
+    if new_password != confirm_password:
+        flash("New passwords do not match")
+        return redirect("/profile")
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT password_hash
+        FROM users
+        WHERE id=?
+    """, (current_user.id,))
+
+    row = cur.fetchone()
+
+    if not row:
+        conn.close()
+        flash("User not found")
+        return redirect("/profile")
+
+    if not check_password_hash(row[0], current_password):
+        conn.close()
+        flash("Current password is incorrect")
+        return redirect("/profile")
+
+    new_hash = generate_password_hash(new_password)
+
+    cur.execute("""
+        UPDATE users
+        SET password_hash=?
+        WHERE id=?
+    """, (
+        new_hash,
+        current_user.id
+    ))
+
+    conn.commit()
+    conn.close()
+
+    flash("Password updated successfully")
+
+    return redirect("/profile")
+
 
 # FIX Bug 1: "/" is only the landing page
 @app.route("/")

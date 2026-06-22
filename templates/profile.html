@@ -4,39 +4,69 @@
 
 <div class="form-card">
 
-<h2>My Profile</h2>
+    <h2>My Profile</h2>
 
-<p>
-    <strong>Name:</strong>
-    {{ current_user.name }}
-</p>
+    <p>
+        <strong>Name:</strong>
+        {{ current_user.name }}
+    </p>
 
-<p>
-    <strong>Email:</strong>
-    {{ current_user.email }}
-</p>
-
+    <p>
+        <strong>Email:</strong>
+        {{ current_user.email }}
+    </p>
 
 </div>
 
 <div class="form-card">
 
-<h2>Update Name</h2>
+    <h2>Update Name</h2>
 
-<form method="POST">
+    <form method="POST">
 
-    <input
-        type="text"
-        name="name"
-        value="{{ current_user.name }}"
-        required>
+        <input
+            type="text"
+            name="name"
+            value="{{ current_user.name }}"
+            required>
 
-    <button type="submit">
-        Update Name
-    </button>
+        <button type="submit">
+            Update Name
+        </button>
 
-</form>
+    </form>
 
+</div>
+
+<div class="form-card">
+
+    <h2>Change Password</h2>
+
+    <form action="/change-password" method="POST">
+
+        <input
+            type="password"
+            name="current_password"
+            placeholder="Current Password"
+            required>
+
+        <input
+            type="password"
+            name="new_password"
+            placeholder="New Password"
+            required>
+
+        <input
+            type="password"
+            name="confirm_password"
+            placeholder="Confirm New Password"
+            required>
+
+        <button type="submit">
+            Change Password
+        </button>
+
+    </form>
 
 </div>
 

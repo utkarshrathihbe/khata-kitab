@@ -139,13 +139,20 @@ def logout():
     return redirect("/login")
 
 
+@app.route("/landing")
+def landing():
+
+    if current_user.is_authenticated:
+        return redirect("/")
+
+    return render_template("landing.html")
+
+
 def generate_charts(user_id):
-    """Generate charts only for the given user's transactions."""
 
     conn = get_db()
     cur = conn.cursor()
 
-    # FIX: Filter by user_id
     cur.execute("""
         SELECT COALESCE(SUM(amount), 0)
         FROM transactions
@@ -162,7 +169,6 @@ def generate_charts(user_id):
 
     os.makedirs("static/charts", exist_ok=True)
 
-    # Bar Chart
     plt.figure(figsize=(5, 4))
     plt.bar(["Income", "Expense"], [income, expense])
     plt.title("Income vs Expense")
@@ -170,7 +176,6 @@ def generate_charts(user_id):
     plt.savefig("static/charts/income_expense.png")
     plt.close()
 
-    # Pie Chart — FIX: Filter by user_id
     cur.execute("""
         SELECT category, SUM(amount)
         FROM transactions
@@ -195,17 +200,16 @@ def generate_charts(user_id):
 
 
 @app.route("/")
-@login_required  # FIX: Protect home route
+@login_required
 def home():
 
     search = request.args.get("search", "")
-    user_id = current_user.id  # FIX: Get logged-in user's ID
+    user_id = current_user.id
 
     conn = get_db()
     cur = conn.cursor()
 
     if search:
-        # FIX: AND user_id=? added to every query
         cur.execute("""
             SELECT *
             FROM transactions
@@ -233,7 +237,6 @@ def home():
 
     transactions = cur.fetchall()
 
-    # FIX: All summary queries filter by user_id
     cur.execute("""
         SELECT COALESCE(SUM(amount), 0)
         FROM transactions
@@ -271,13 +274,12 @@ def home():
 
 
 @app.route("/add", methods=["POST"])
-@login_required  # FIX: Protect add route
+@login_required
 def add():
 
     conn = get_db()
     cur = conn.cursor()
 
-    # FIX: Insert user_id with the transaction
     cur.execute("""
         INSERT INTO transactions(
             transaction_date,
@@ -294,7 +296,7 @@ def add():
         request.form["amount"],
         request.form["category"],
         request.form["note"],
-        current_user.id   # FIX: Bind to logged-in user
+        current_user.id
     ))
 
     conn.commit()
@@ -304,13 +306,12 @@ def add():
 
 
 @app.route("/delete/<int:id>")
-@login_required  # FIX: Protect delete route
+@login_required
 def delete(id):
 
     conn = get_db()
     cur = conn.cursor()
 
-    # FIX: Only delete if it belongs to current user
     cur.execute(
         "DELETE FROM transactions WHERE id=? AND user_id=?",
         (id, current_user.id)
@@ -323,7 +324,7 @@ def delete(id):
 
 
 @app.route("/edit/<int:id>", methods=["GET", "POST"])
-@login_required  # FIX: Protect edit route
+@login_required
 def edit(id):
 
     conn = get_db()
@@ -331,7 +332,6 @@ def edit(id):
 
     if request.method == "POST":
 
-        # FIX: Only update if it belongs to current user
         cur.execute("""
             UPDATE transactions
             SET transaction_date=?,
@@ -347,7 +347,7 @@ def edit(id):
             request.form["category"],
             request.form["note"],
             id,
-            current_user.id   # FIX: Ownership check
+            current_user.id
         ))
 
         conn.commit()
@@ -355,7 +355,6 @@ def edit(id):
 
         return redirect("/")
 
-    # FIX: Only fetch if it belongs to current user
     cur.execute(
         "SELECT * FROM transactions WHERE id=? AND user_id=?",
         (id, current_user.id)
@@ -372,16 +371,15 @@ def edit(id):
 
 
 @app.route("/reports")
-@login_required  # FIX: Protect reports route
+@login_required
 def reports():
 
-    user_id = current_user.id  # FIX: Scope to current user
+    user_id = current_user.id
     generate_charts(user_id)
 
     conn = get_db()
     cur = conn.cursor()
 
-    # FIX: All queries filter by user_id
     cur.execute("""
         SELECT COALESCE(SUM(amount), 0)
         FROM transactions
@@ -440,13 +438,12 @@ def reports():
 
 
 @app.route("/export")
-@login_required  # FIX: Protect export route
+@login_required
 def export_csv():
 
     conn = get_db()
     cur = conn.cursor()
 
-    # FIX: Only export current user's transactions
     cur.execute("""
         SELECT
             transaction_date,

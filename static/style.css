@@ -230,3 +230,62 @@ height:240px !important;
 ```
 
 }
+.landing-navbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+padding:20px 40px;
+}
+
+.hero{
+text-align:center;
+padding:80px 20px;
+}
+
+.hero h1{
+font-size:48px;
+margin-bottom:15px;
+}
+
+.hero p{
+font-size:20px;
+color:#6b7280;
+margin-bottom:30px;
+}
+
+.hero-buttons{
+display:flex;
+justify-content:center;
+gap:15px;
+}
+
+.hero-btn{
+padding:12px 24px;
+border-radius:10px;
+text-decoration:none;
+border:1px solid #2563eb;
+color:#2563eb;
+font-weight:bold;
+}
+
+.hero-btn-primary{
+background:#2563eb;
+color:white;
+}
+
+.features{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:20px;
+max-width:1200px;
+margin:40px auto;
+}
+
+.feature-card{
+background:white;
+padding:25px;
+border-radius:16px;
+box-shadow:0 4px 12px rgba(0,0,0,0.06);
+text-align:center;
+}
+

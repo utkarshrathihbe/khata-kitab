@@ -1,63 +1,34 @@
 <!DOCTYPE html>
-
 <html>
-
 <head>
-
-<meta charset="UTF-8">
-
-<title>Khata Kitab</title>
-
-<link rel="stylesheet"
-      href="{{ url_for('static', filename='style.css') }}">
-
-
+    <meta charset="UTF-8">
+    <title>Khata Kitab</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-
 <body>
-
 <div class="navbar">
-
     <div class="logo">
         💰 Khata Kitab
     </div>
-
     <div class="user-info">
-
         {% if current_user.is_authenticated %}
             Welcome, {{ current_user.name }}
         {% endif %}
-
     </div>
-
     <div class="nav-links">
-
-        <a href="/">Dashboard</a>
-
-        <a href="/reports">Reports</a>
-
-        <a href="/profile">Profile</a>
-
-        <a href="/export">Export CSV</a>
-
         {% if current_user.is_authenticated %}
-
+            <a href="/dashboard">Dashboard</a>
+            <a href="/reports">Reports</a>
+            <a href="/profile">Profile</a>
+            <a href="/export">Export CSV</a>
             <a href="/logout">Logout</a>
-
         {% else %}
-
             <a href="/login">Login</a>
-
             <a href="/signup">Signup</a>
-
         {% endif %}
-
     </div>
-
 </div>
-
 <div class="container">
-
     {% with messages = get_flashed_messages() %}
         {% if messages %}
             {% for message in messages %}
@@ -67,12 +38,11 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-
     {% block content %}
     {% endblock %}
-
 </div>
-
+<footer style="text-align:center; padding: 15px; margin-top: 20px; color: #777; font-size: 14px;">
+    Made with ❤️ by Utkarsh Rathi
+</footer>
 </body>
-
 </html>

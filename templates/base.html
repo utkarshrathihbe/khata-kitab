@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Khata Kitab</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Google Fonts & FontAwesome Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-[#f8fafc]">
+
+    <!-- Scrollable content area, with bottom padding so footer never overlaps content -->
+    <div class="min-h-screen pb-16">
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <!-- Fixed footer, always visible at bottom of screen -->
+    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 text-center text-gray-500 text-sm py-3 shadow-md z-50">
+        Made with ❤️ by Utkarsh Rathi
+    </footer>
+
+</body>
+</html>

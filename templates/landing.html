@@ -5,6 +5,25 @@
 <title>Khata Kitab</title>
 <link rel="stylesheet"
       href="{{ url_for('static', filename='style.css') }}">
+<style>
+    body {
+        padding-bottom: 50px; /* prevents content from hiding behind the fixed footer */
+    }
+    .fixed-footer {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        padding: 12px;
+        background: white;
+        color: #6b7280;
+        font-size: 14px;
+        border-top: 1px solid #e5e7eb;
+        box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+        z-index: 50;
+    }
+</style>
 </head>
 <body>
 <div class="landing-navbar">
@@ -61,7 +80,7 @@
         </p>
     </div>
 </div>
-<footer style="text-align:center; padding: 15px; color: #6b7280; font-size: 14px; border-top: 1px solid #e5e7eb; margin-top: 20px;">
+<footer class="fixed-footer">
     Made with ❤️ by Utkarsh Rathi
 </footer>
 </body>

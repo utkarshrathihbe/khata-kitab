@@ -3,3 +3,4 @@ gunicorn
 matplotlib
 Flask-Login
 Werkzeug
+Flask-SQLAlchemy

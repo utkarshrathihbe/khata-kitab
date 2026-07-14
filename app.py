@@ -199,9 +199,21 @@ def signup_page():
         return redirect(url_for('dashboard'))
 
     if request.method == "POST":
-        name = request.form.get("username")
-        email = request.form.get("email")
-        password = request.form.get("password")
+        name = (request.form.get("username") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+        password = request.form.get("password") or ""
+
+        if not name or len(name) < 2:
+            flash("Please enter your full name.")
+            return redirect(url_for('signup_page'))
+
+        if "@" not in email or "." not in email.split("@")[-1]:
+            flash("Please enter a valid email address.")
+            return redirect(url_for('signup_page'))
+
+        if len(password) < 6:
+            flash("Password must be at least 6 characters long.")
+            return redirect(url_for('signup_page'))
 
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
@@ -228,6 +240,42 @@ def logout():
     logout_user()
     flash("Logged out successfully.")
     return redirect(url_for('login_page'))
+
+@app.route("/forgot", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        user = User.query.filter_by(email=email).first()
+        # Always show the same message whether or not the email exists,
+        # so we don't leak which emails are registered.
+        flash("If an account with that email exists, password reset instructions would be sent. (Email sending isn't set up yet.)")
+        return redirect(url_for('login_page'))
+
+    return '''
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+        <title>Forgot Password | Khata Kitab</title>
+    </head>
+    <body class="bg-[#f8fafc] flex items-center justify-center min-h-screen font-['Plus_Jakarta_Sans']">
+        <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-2 text-slate-800 text-center">Reset Password</h2>
+            <p class="text-slate-500 text-sm mb-6 text-center">Enter your email and we will send reset instructions.</p>
+            <form method="POST" class="space-y-4">
+                <input type="email" name="email" placeholder="name@company.com" required
+                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all">
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm transition-all cursor-pointer">
+                    Send Reset Instructions
+                </button>
+            </form>
+            <p class="text-center mt-6 text-sm"><a href="/login" class="text-emerald-600 font-semibold hover:underline">Back to Login</a></p>
+        </div>
+    </body>
+    </html>
+    '''
 
 # ---- Form Actions & Handle Submissions ----
 

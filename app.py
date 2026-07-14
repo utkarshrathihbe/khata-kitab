@@ -2,6 +2,8 @@ import io
 import base64
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_sqlalchemy import SQLAlchemy
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Matplotlib configuration for background servers
 import matplotlib
@@ -10,91 +12,107 @@ import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 app.secret_key = "super_secret_khata_key"
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///khatakitab.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+db = SQLAlchemy(app)
 
 # ---- Flask-Login Configuration ----
 login_manager = LoginManager()
 login_manager.init_app(app)
-login_manager.login_view = 'login'
+login_manager.login_view = 'login_page'
 
-# Mock User Class matching all frontend variables (.name and .email)
-class User(UserMixin):
-    def __init__(self, id, name, email):
-        self.id = id
-        self.name = name
-        self.email = email
+# ---- Database Models ----
 
-# Global mock user instance for demonstration
-MOCK_USER = User(id="1", name="Utkarsh Rathi", email="utkarsh@khata.com")
+class User(db.Model, UserMixin):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    email = db.Column(db.String, unique=True, nullable=False)
+    password_hash = db.Column(db.String, nullable=False)
+
+class Transaction(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    transaction_date = db.Column(db.String)
+    category = db.Column(db.String)
+    note = db.Column(db.String)
+    amount = db.Column(db.Float)
+    transaction_type = db.Column(db.String)
+
+class Budget(db.Model):
+    category = db.Column(db.String, primary_key=True)
+    limit_amount = db.Column(db.Float)
+
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String)
+    amount = db.Column(db.Float)
+    billing_cycle = db.Column(db.String)
 
 @login_manager.user_loader
 def load_user(user_id):
-    # dynamic simulation fallback checks
-    if user_id == "1":
-        return MOCK_USER
-    return None
+    return User.query.get(int(user_id))
 
-# ---- Dummy In-Memory Data Storage ----
-TRANSACTIONS = [
-    {"id": 1, "transaction_date": "2026-06-20", "category": "Food", "note": "Dinner with friends", "amount": 1250.00, "transaction_type": "Expense"},
-    {"id": 2, "transaction_date": "2026-06-21", "category": "Salary", "note": "Freelance payout", "amount": 45000.00, "transaction_type": "Income"},
-    {"id": 3, "transaction_date": "2026-06-22", "category": "Rent", "note": "June apartment bill", "amount": 12000.00, "transaction_type": "Expense"},
-    {"id": 4, "transaction_date": "2026-06-23", "category": "Entertainment", "note": "Movie Night", "amount": 850.00, "transaction_type": "Expense"}
-]
-BUDGETS = {"Food": 5000.00, "Rent": 15000.00, "Entertainment": 2000.00}
-SUBSCRIPTIONS = [
-    {"id": 1, "name": "Netflix Premium", "amount": 649.00, "billing_cycle": "Monthly"},
-    {"id": 2, "name": "GitHub Copilot", "amount": 850.00, "billing_cycle": "Monthly"}
-]
+# ---- Create tables on first run ----
+with app.app_context():
+    db.create_all()
+
+# ---- Public Landing Page ----
+
+@app.route("/")
+def landing():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return render_template("landing.html")
 
 # ---- Core Views Controllers ----
 
-@app.route("/")
 @app.route("/dashboard")
+@login_required
 def dashboard():
-    # FIXED: Agar user logged out hai to automatic standard dashboard shell show karne ke bajaye login bypass check handle karega
-    if not current_user.is_authenticated:
-        return redirect(url_for('login_page'))
-
     search_query = request.args.get('search', '').lower()
 
-    filtered_txns = TRANSACTIONS
+    all_txns = Transaction.query.all()
+    filtered_txns = all_txns
     if search_query:
-        filtered_txns = [t for t in TRANSACTIONS if search_query in t['category'].lower() or search_query in (t['note'] or '').lower()]
+        filtered_txns = [t for t in all_txns if search_query in t.category.lower() or search_query in (t.note or '').lower()]
 
-    total_income = sum(t['amount'] for t in TRANSACTIONS if t['transaction_type'] == 'Income')
-    total_expense = sum(t['amount'] for t in TRANSACTIONS if t['transaction_type'] == 'Expense')
+    total_income = sum(t.amount for t in all_txns if t.transaction_type == 'Income')
+    total_expense = sum(t.amount for t in all_txns if t.transaction_type == 'Expense')
     balance = total_income - total_expense
 
     savings_rate = 0
     if total_income > 0:
         savings_rate = round(((total_income - total_expense) / total_income) * 100, 1)
-        if savings_rate < 0: savings_rate = 0
+        if savings_rate < 0:
+            savings_rate = 0
 
     budget_alerts = []
-    for cat, limit in BUDGETS.items():
-        spent = sum(t['amount'] for t in TRANSACTIONS if t['category'] == cat and t['transaction_type'] == 'Expense')
-        percentage = round((spent / limit) * 100, 1) if limit > 0 else 0
+    for b in Budget.query.all():
+        spent = sum(t.amount for t in all_txns if t.category == b.category and t.transaction_type == 'Expense')
+        percentage = round((spent / b.limit_amount) * 100, 1) if b.limit_amount > 0 else 0
         budget_alerts.append({
-            "category": cat, "spent": spent, "limit": limit, "percentage": percentage,
+            "category": b.category, "spent": spent, "limit": b.limit_amount, "percentage": percentage,
             "is_danger": percentage >= 100, "is_warning": 80 <= percentage < 100
         })
+
+    subscriptions = Subscription.query.all()
 
     return render_template(
         "index.html", search=search_query, transactions=filtered_txns,
         balance=f"{balance:,.2f}", month_income=f"{total_income:,.2f}", total_income=f"{total_income:,.2f}",
         month_expense=f"{total_expense:,.2f}", total_expense=f"{total_expense:,.2f}",
-        savings_rate=savings_rate, budget_alerts=budget_alerts, subscriptions=SUBSCRIPTIONS
+        savings_rate=savings_rate, budget_alerts=budget_alerts, subscriptions=subscriptions
     )
 
 @app.route("/reports")
 @login_required
 def reports():
-    expenses = [t for t in TRANSACTIONS if t['transaction_type'] == 'Expense']
-    total_exp = sum(e['amount'] for e in expenses)
+    expenses = [t for t in Transaction.query.all() if t.transaction_type == 'Expense']
+    total_exp = sum(e.amount for e in expenses)
 
     cat_map = {}
     for e in expenses:
-        cat_map[e['category']] = cat_map.get(e['category'], 0) + e['amount']
+        cat_map[e.category] = cat_map.get(e.category, 0) + e.amount
 
     category_breakdown = []
     top_category = "None"
@@ -129,7 +147,7 @@ def reports():
             text.set_fontsize(10)
             text.set_weight('bold')
 
-        centre_circle = plt.Circle((0,0), 0.68, fc='white')
+        centre_circle = plt.Circle((0, 0), 0.68, fc='white')
         fig.gca().add_artist(centre_circle)
 
         ax.axis('equal')
@@ -157,35 +175,52 @@ def profile():
 
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
-    if request.method == "POST":
-        # Simulating easy mock verification for password parameters
-        login_user(MOCK_USER)
-        flash("Welcome back to Khata Kitab ecosystem sync!")
+    if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
 
-    # Simple inline form view falls back gracefully if you don't have login.html created yet
-    return '''
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
-        <title>Login | Khata Kitab</title>
-    </head>
-    <body class="bg-[#f8fafc] flex items-center justify-center min-h-screen font-['Plus_Jakarta_Sans']">
-        <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm w-full max-w-md text-center">
-            <h2 class="text-2xl font-bold mb-2 text-slate-800">Welcome to Khata Kitab</h2>
-            <p class="text-slate-500 text-sm mb-6">Click below to authenticate into the system environment.</p>
-            <form method="POST">
-                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 px-4 rounded-xl transition-all cursor-pointer shadow-md shadow-emerald-600/10">
-                    Sign In to Workspace
-                </button>
-            </form>
-        </div>
-    </body>
-    </html>
-    '''
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        user = User.query.filter_by(email=email).first()
+
+        if user and check_password_hash(user.password_hash, password):
+            login_user(user)
+            flash("Welcome back to Khata Kitab!")
+            return redirect(url_for('dashboard'))
+        else:
+            flash("Invalid email or password.")
+            return redirect(url_for('login_page'))
+
+    return render_template("login.html")
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup_page():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
+    if request.method == "POST":
+        name = request.form.get("username")
+        email = request.form.get("email")
+        password = request.form.get("password")
+
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            flash("An account with this email already exists.")
+            return redirect(url_for('signup_page'))
+
+        new_user = User(
+            name=name,
+            email=email,
+            password_hash=generate_password_hash(password)
+        )
+        db.session.add(new_user)
+        db.session.commit()
+
+        login_user(new_user)
+        flash("Account created successfully! Welcome to Khata Kitab.")
+        return redirect(url_for('dashboard'))
+
+    return render_template("signup.html")
 
 @app.route("/logout")
 @login_required
@@ -199,44 +234,65 @@ def logout():
 @app.route("/add", methods=["POST"])
 @login_required
 def add_transaction():
-    new_id = len(TRANSACTIONS) + 1
-    TRANSACTIONS.append({
-        "id": new_id,
-        "transaction_date": request.form.get("transaction_date"),
-        "category": request.form.get("category"),
-        "note": request.form.get("note"),
-        "amount": float(request.form.get("amount")),
-        "transaction_type": request.form.get("transaction_type")
-    })
+    txn = Transaction(
+        transaction_date=request.form.get("transaction_date"),
+        category=request.form.get("category"),
+        note=request.form.get("note"),
+        amount=float(request.form.get("amount")),
+        transaction_type=request.form.get("transaction_type")
+    )
+    db.session.add(txn)
+    db.session.commit()
     flash("Transaction ledger sync operation successful!")
     return redirect(url_for('dashboard'))
+
+@app.route("/edit/<int:txn_id>", methods=["GET", "POST"])
+@login_required
+def edit_transaction(txn_id):
+    txn = Transaction.query.get_or_404(txn_id)
+
+    if request.method == "POST":
+        txn.transaction_date = request.form.get("transaction_date")
+        txn.transaction_type = request.form.get("transaction_type")
+        txn.amount = float(request.form.get("amount"))
+        txn.category = request.form.get("category")
+        txn.note = request.form.get("note")
+        db.session.commit()
+        flash("Transaction updated successfully!")
+        return redirect(url_for('dashboard'))
+
+    return render_template("edit.html", txn=txn)
 
 @app.route("/delete/<int:txn_id>")
 @login_required
 def delete_transaction(txn_id):
-    global TRANSACTIONS
-    TRANSACTIONS = [t for t in TRANSACTIONS if t['id'] != txn_id]
+    txn = Transaction.query.get(txn_id)
+    if txn:
+        db.session.delete(txn)
+        db.session.commit()
     flash("Transaction deleted successfully!")
     return redirect(url_for('dashboard'))
 
 @app.route("/cancel-subscription/<int:sub_id>")
 @login_required
 def cancel_subscription(sub_id):
-    global SUBSCRIPTIONS
-    SUBSCRIPTIONS = [s for s in SUBSCRIPTIONS if s['id'] != sub_id]
+    sub = Subscription.query.get(sub_id)
+    if sub:
+        db.session.delete(sub)
+        db.session.commit()
     flash("Subscription cancelled successfully.")
     return redirect(url_for('dashboard'))
 
 @app.route("/add-subscription", methods=["POST"])
 @login_required
 def add_subscription():
-    new_id = len(SUBSCRIPTIONS) + 1
-    SUBSCRIPTIONS.append({
-        "id": new_id,
-        "name": request.form.get("name"),
-        "amount": float(request.form.get("amount")),
-        "billing_cycle": request.form.get("billing_cycle")
-    })
+    sub = Subscription(
+        name=request.form.get("name"),
+        amount=float(request.form.get("amount")),
+        billing_cycle=request.form.get("billing_cycle")
+    )
+    db.session.add(sub)
+    db.session.commit()
     flash("Subscription added successfully!")
     return redirect(url_for('dashboard'))
 
@@ -245,30 +301,52 @@ def add_subscription():
 def set_budget():
     category = request.form.get("category")
     amount = float(request.form.get("amount"))
-    BUDGETS[category] = amount
-    flash(f"Budget for {category} set to ₹{amount:,.2f}")
+    budget = Budget.query.get(category)
+    if budget:
+        budget.limit_amount = amount
+    else:
+        db.session.add(Budget(category=category, limit_amount=amount))
+    db.session.commit()
+    flash(f"Budget for {category} set to Rs. {amount:,.2f}")
     return redirect(url_for('dashboard'))
 
 @app.route("/update-profile", methods=["POST"])
 @login_required
 def update_profile():
     new_name = request.form.get("name")
-    MOCK_USER.name = new_name
+    current_user.name = new_name
+    db.session.commit()
     flash("Personal operational configurations synchronized.")
     return redirect(url_for('profile'))
 
 @app.route("/change-password", methods=["POST"])
 @login_required
 def change_password():
+    current_pwd = request.form.get("current_password")
     new_pwd = request.form.get("new_password")
     confirm_pwd = request.form.get("confirm_password")
+
+    if not check_password_hash(current_user.password_hash, current_pwd):
+        flash("Current password is incorrect.")
+        return redirect(url_for('profile'))
 
     if new_pwd != confirm_pwd:
         flash("Password sync validation mismatch! Please verify inputs.")
         return redirect(url_for('profile'))
 
+    current_user.password_hash = generate_password_hash(new_pwd)
+    db.session.commit()
     flash("Security parameters successfully updated.")
     return redirect(url_for('profile'))
+
+# ---- Prevent cached pages from showing after logout (back-button fix) ----
+@app.after_request
+def add_no_cache_headers(response):
+    if request.endpoint in ['dashboard', 'reports', 'profile', 'edit_transaction']:
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True)

@@ -1,34 +1,16 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Settings | Khata Kitab</title>
-    
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    
-    <!-- Google Fonts & Icons -->
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-    </style>
-</head>
-<body class="bg-[#f8fafc] text-slate-800 antialiased">
-
-<div class="min-h-screen flex w-full">
+{% extends "base.html" %}
+{% block content %}
+<div class="min-h-screen flex w-full bg-[#f8fafc]">
 
     <!-- Sidebar Navigation -->
-    <aside class="w-64 bg-white border-r border-slate-200 p-6 flex flex-col justify-between hidden md:flex min-h-screen sticky top-0">
+    <aside class="w-64 bg-white border-r border-slate-200 p-6 flex flex-col justify-between hidden md:flex">
         <div>
-            <div class="flex items-center gap-3 mb-10 px-2">
+            <a href="/dashboard" class="flex items-center gap-3 mb-10 px-2">
                 <div class="bg-emerald-600 text-white p-2.5 rounded-xl font-bold text-xl shadow-lg shadow-emerald-600/10">
                     <i class="fa-solid fa-wallet"></i>
                 </div>
                 <span class="text-xl font-bold tracking-tight text-slate-800">Khata Kitab</span>
-            </div>
+            </a>
             <nav class="space-y-1.5">
                 <a href="/dashboard" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium transition-all">
                     <i class="fa-solid fa-chart-pie text-lg"></i> Dashboard
@@ -140,6 +122,4 @@
         </div>
     </main>
 </div>
-
-</body>
-</html>
+{% endblock %}

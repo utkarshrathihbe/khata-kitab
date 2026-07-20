@@ -1,9 +1,12 @@
 import io
+import os
 import base64
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 # Matplotlib configuration for background servers
 import matplotlib
@@ -14,6 +17,14 @@ app = Flask(__name__)
 app.secret_key = "super_secret_khata_key"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///khatakitab.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB max upload size
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 db = SQLAlchemy(app)
 
@@ -29,9 +40,11 @@ class User(db.Model, UserMixin):
     name = db.Column(db.String, nullable=False)
     email = db.Column(db.String, unique=True, nullable=False)
     password_hash = db.Column(db.String, nullable=False)
+    profile_pic = db.Column(db.String, nullable=True)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     transaction_date = db.Column(db.String)
     category = db.Column(db.String)
     note = db.Column(db.String)
@@ -39,14 +52,26 @@ class Transaction(db.Model):
     transaction_type = db.Column(db.String)
 
 class Budget(db.Model):
-    category = db.Column(db.String, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    category = db.Column(db.String, nullable=False)
     limit_amount = db.Column(db.Float)
+    __table_args__ = (db.UniqueConstraint('user_id', 'category', name='uq_user_category'),)
 
 class Subscription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     name = db.Column(db.String)
     amount = db.Column(db.Float)
     billing_cycle = db.Column(db.String)
+
+class Feedback(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    category = db.Column(db.String, nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String, default="Open")
+    created_at = db.Column(db.String)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -71,7 +96,7 @@ def landing():
 def dashboard():
     search_query = request.args.get('search', '').lower()
 
-    all_txns = Transaction.query.all()
+    all_txns = Transaction.query.filter_by(user_id=current_user.id).all()
     filtered_txns = all_txns
     if search_query:
         filtered_txns = [t for t in all_txns if search_query in t.category.lower() or search_query in (t.note or '').lower()]
@@ -87,7 +112,7 @@ def dashboard():
             savings_rate = 0
 
     budget_alerts = []
-    for b in Budget.query.all():
+    for b in Budget.query.filter_by(user_id=current_user.id).all():
         spent = sum(t.amount for t in all_txns if t.category == b.category and t.transaction_type == 'Expense')
         percentage = round((spent / b.limit_amount) * 100, 1) if b.limit_amount > 0 else 0
         budget_alerts.append({
@@ -95,7 +120,7 @@ def dashboard():
             "is_danger": percentage >= 100, "is_warning": 80 <= percentage < 100
         })
 
-    subscriptions = Subscription.query.all()
+    subscriptions = Subscription.query.filter_by(user_id=current_user.id).all()
 
     return render_template(
         "index.html", search=search_query, transactions=filtered_txns,
@@ -107,7 +132,7 @@ def dashboard():
 @app.route("/reports")
 @login_required
 def reports():
-    expenses = [t for t in Transaction.query.all() if t.transaction_type == 'Expense']
+    expenses = [t for t in Transaction.query.filter_by(user_id=current_user.id).all() if t.transaction_type == 'Expense']
     total_exp = sum(e.amount for e in expenses)
 
     cat_map = {}
@@ -170,6 +195,32 @@ def reports():
 @login_required
 def profile():
     return render_template("profile.html")
+
+@app.route("/feedback", methods=["GET", "POST"])
+@login_required
+def feedback_page():
+    if request.method == "POST":
+        category = request.form.get("category")
+        message = (request.form.get("message") or "").strip()
+
+        if not message:
+            flash("Please describe your feedback before submitting.")
+            return redirect(url_for('feedback_page'))
+
+        entry = Feedback(
+            user_id=current_user.id,
+            category=category,
+            message=message,
+            status="Open",
+            created_at=datetime.now().strftime("%d %b %Y, %I:%M %p")
+        )
+        db.session.add(entry)
+        db.session.commit()
+        flash("Thanks! Your feedback has been submitted.")
+        return redirect(url_for('feedback_page'))
+
+    my_feedback = Feedback.query.filter_by(user_id=current_user.id).order_by(Feedback.id.desc()).all()
+    return render_template("feedback.html", feedback_list=my_feedback)
 
 # ---- Authentication Routes ----
 
@@ -283,6 +334,7 @@ def forgot_password():
 @login_required
 def add_transaction():
     txn = Transaction(
+        user_id=current_user.id,
         transaction_date=request.form.get("transaction_date"),
         category=request.form.get("category"),
         note=request.form.get("note"),
@@ -294,10 +346,32 @@ def add_transaction():
     flash("Transaction ledger sync operation successful!")
     return redirect(url_for('dashboard'))
 
+@app.route("/export")
+@login_required
+def export_csv():
+    import csv
+    txns = Transaction.query.filter_by(user_id=current_user.id).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Date", "Category", "Note", "Amount", "Type"])
+    for t in txns:
+        writer.writerow([t.transaction_date, t.category, t.note or "", t.amount, t.transaction_type])
+
+    from flask import Response
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=khata_kitab_transactions.csv"}
+    )
+
 @app.route("/edit/<int:txn_id>", methods=["GET", "POST"])
 @login_required
 def edit_transaction(txn_id):
     txn = Transaction.query.get_or_404(txn_id)
+    if txn.user_id != current_user.id:
+        flash("You don't have permission to edit this transaction.")
+        return redirect(url_for('dashboard'))
 
     if request.method == "POST":
         txn.transaction_date = request.form.get("transaction_date")
@@ -315,6 +389,9 @@ def edit_transaction(txn_id):
 @login_required
 def delete_transaction(txn_id):
     txn = Transaction.query.get(txn_id)
+    if txn and txn.user_id != current_user.id:
+        flash("You don't have permission to delete this transaction.")
+        return redirect(url_for('dashboard'))
     if txn:
         db.session.delete(txn)
         db.session.commit()
@@ -325,6 +402,9 @@ def delete_transaction(txn_id):
 @login_required
 def cancel_subscription(sub_id):
     sub = Subscription.query.get(sub_id)
+    if sub and sub.user_id != current_user.id:
+        flash("You don't have permission to cancel this subscription.")
+        return redirect(url_for('dashboard'))
     if sub:
         db.session.delete(sub)
         db.session.commit()
@@ -335,6 +415,7 @@ def cancel_subscription(sub_id):
 @login_required
 def add_subscription():
     sub = Subscription(
+        user_id=current_user.id,
         name=request.form.get("name"),
         amount=float(request.form.get("amount")),
         billing_cycle=request.form.get("billing_cycle")
@@ -349,11 +430,11 @@ def add_subscription():
 def set_budget():
     category = request.form.get("category")
     amount = float(request.form.get("amount"))
-    budget = Budget.query.get(category)
+    budget = Budget.query.filter_by(user_id=current_user.id, category=category).first()
     if budget:
         budget.limit_amount = amount
     else:
-        db.session.add(Budget(category=category, limit_amount=amount))
+        db.session.add(Budget(user_id=current_user.id, category=category, limit_amount=amount))
     db.session.commit()
     flash(f"Budget for {category} set to Rs. {amount:,.2f}")
     return redirect(url_for('dashboard'))
@@ -365,6 +446,29 @@ def update_profile():
     current_user.name = new_name
     db.session.commit()
     flash("Personal operational configurations synchronized.")
+    return redirect(url_for('profile'))
+
+@app.route("/upload-profile-photo", methods=["POST"])
+@login_required
+def upload_profile_photo():
+    file = request.files.get("photo")
+
+    if not file or file.filename == "":
+        flash("Please choose an image file to upload.")
+        return redirect(url_for('profile'))
+
+    if not allowed_file(file.filename):
+        flash("Invalid file type. Please upload a PNG, JPG, GIF, or WEBP image.")
+        return redirect(url_for('profile'))
+
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    filename = secure_filename(f"user_{current_user.id}.{ext}")
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+
+    current_user.profile_pic = filename
+    db.session.commit()
+    flash("Profile photo updated successfully!")
     return redirect(url_for('profile'))
 
 @app.route("/change-password", methods=["POST"])
@@ -390,7 +494,7 @@ def change_password():
 # ---- Prevent cached pages from showing after logout (back-button fix) ----
 @app.after_request
 def add_no_cache_headers(response):
-    if request.endpoint in ['dashboard', 'reports', 'profile', 'edit_transaction']:
+    if request.endpoint in ['dashboard', 'reports', 'profile', 'edit_transaction', 'feedback_page']:
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '-1'

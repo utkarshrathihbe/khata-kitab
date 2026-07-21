@@ -38,6 +38,34 @@
     {% block content %}
     {% endblock %}
 
+    <!-- Floating Chatbot Widget -->
+    <div id="chatbotButton" onclick="toggleChatbot()"
+         class="fixed bottom-20 right-5 z-50 bg-emerald-600 hover:bg-emerald-700 text-white w-14 h-14 rounded-full shadow-lg flex items-center justify-center cursor-pointer transition-all">
+        <i class="fa-solid fa-comment-dots text-xl"></i>
+    </div>
+
+    <div id="chatbotPanel"
+         class="hidden fixed bottom-36 right-5 z-50 w-80 max-w-[90vw] bg-white border border-slate-200 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+         style="height: 420px;">
+        <div class="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-robot"></i>
+                <span class="font-semibold text-sm">Khata Kitab Assistant</span>
+            </div>
+            <button onclick="toggleChatbot()" class="text-white/80 hover:text-white text-lg leading-none">&times;</button>
+        </div>
+        <div id="chatbotMessages" class="flex-1 overflow-y-auto p-3 space-y-2 bg-slate-50 text-sm"></div>
+        <div class="border-t border-slate-200 p-2 flex gap-2 bg-white">
+            <input id="chatbotInput" type="text" placeholder="Ask about balance, budgets..."
+                   class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-emerald-600"
+                   onkeydown="if(event.key==='Enter'){sendChatbotMessage();}">
+            <button onclick="sendChatbotMessage()"
+                    class="bg-emerald-600 hover:bg-emerald-700 text-white w-9 h-9 rounded-xl flex items-center justify-center cursor-pointer">
+                <i class="fa-solid fa-paper-plane text-sm"></i>
+            </button>
+        </div>
+    </div>
+
     <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 text-center text-gray-500 text-sm py-3 shadow-md z-50">
         Made with ❤️ by Utkarsh Rathi
     </footer>
@@ -57,6 +85,50 @@
             aside.classList.toggle('shadow-2xl');
 
             overlay.classList.toggle('hidden');
+        }
+
+        function toggleChatbot() {
+            const panel = document.getElementById('chatbotPanel');
+            panel.classList.toggle('hidden');
+            if (!panel.classList.contains('hidden')) {
+                const messages = document.getElementById('chatbotMessages');
+                if (messages.children.length === 0) {
+                    appendChatMessage("Hi! I can help with your balance, spending, budgets, subscriptions, or how to use Khata Kitab. What would you like to know?", "bot");
+                }
+                document.getElementById('chatbotInput').focus();
+            }
+        }
+
+        function appendChatMessage(text, sender) {
+            const messages = document.getElementById('chatbotMessages');
+            const bubble = document.createElement('div');
+            bubble.className = sender === 'user'
+                ? 'ml-auto bg-emerald-600 text-white px-3 py-2 rounded-2xl rounded-br-sm max-w-[85%] whitespace-pre-line'
+                : 'mr-auto bg-white border border-slate-200 text-slate-700 px-3 py-2 rounded-2xl rounded-bl-sm max-w-[85%] whitespace-pre-line shadow-sm';
+            bubble.textContent = text;
+            messages.appendChild(bubble);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        async function sendChatbotMessage() {
+            const input = document.getElementById('chatbotInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            appendChatMessage(text, 'user');
+            input.value = '';
+
+            try {
+                const res = await fetch('/chatbot-query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const data = await res.json();
+                appendChatMessage(data.reply, 'bot');
+            } catch (err) {
+                appendChatMessage("Sorry, something went wrong. Please try again.", 'bot');
+            }
         }
     </script>
 

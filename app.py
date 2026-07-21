@@ -2,7 +2,7 @@ import io
 import os
 import base64
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -490,6 +490,100 @@ def change_password():
     db.session.commit()
     flash("Security parameters successfully updated.")
     return redirect(url_for('profile'))
+
+# ---- Chatbot Logic ----
+
+def get_chatbot_reply(message, user_id):
+    msg = message.lower().strip()
+
+    txns = Transaction.query.filter_by(user_id=user_id).all()
+    total_income = sum(t.amount for t in txns if t.transaction_type == 'Income')
+    total_expense = sum(t.amount for t in txns if t.transaction_type == 'Expense')
+    balance = total_income - total_expense
+
+    # --- Data queries ---
+    if "balance" in msg:
+        return f"Your current net balance is ₹{balance:,.2f}."
+
+    if "how much" in msg and ("spend" in msg or "spent" in msg):
+        categories = {}
+        for t in txns:
+            if t.transaction_type == 'Expense':
+                categories[t.category.lower()] = categories.get(t.category.lower(), 0) + t.amount
+        for cat, amt in categories.items():
+            if cat in msg:
+                return f"You've spent ₹{amt:,.2f} on {cat.title()} so far."
+        if categories:
+            lines = [f"{c.title()}: ₹{a:,.2f}" for c, a in categories.items()]
+            return "Here's your spending by category:\n" + "\n".join(lines)
+        return "You don't have any recorded expenses yet."
+
+    if "income" in msg:
+        return f"Your total recorded income is ₹{total_income:,.2f}."
+
+    if "expense" in msg or "outflow" in msg:
+        return f"Your total recorded expenses are ₹{total_expense:,.2f}."
+
+    if "budget" in msg:
+        budgets = Budget.query.filter_by(user_id=user_id).all()
+        if not budgets:
+            return "You haven't set any budgets yet. You can set one from the Dashboard under 'Set Category Budgets'."
+        lines = []
+        for b in budgets:
+            spent = sum(t.amount for t in txns if t.category == b.category and t.transaction_type == 'Expense')
+            pct = round((spent / b.limit_amount) * 100, 1) if b.limit_amount > 0 else 0
+            lines.append(f"{b.category}: ₹{spent:,.2f} / ₹{b.limit_amount:,.2f} ({pct}%)")
+        return "Here's your budget status:\n" + "\n".join(lines)
+
+    if "subscription" in msg or "recurring" in msg or "bill" in msg:
+        subs = Subscription.query.filter_by(user_id=user_id).all()
+        if not subs:
+            return "You don't have any active subscriptions listed."
+        lines = [f"{s.name}: ₹{s.amount:,.2f} ({s.billing_cycle})" for s in subs]
+        return "Your active subscriptions:\n" + "\n".join(lines)
+
+    # --- FAQ / how-to ---
+    if "add" in msg and "transaction" in msg:
+        return "To add a transaction, go to the Dashboard and fill out the 'Record New Entry' form with date, type, amount, and category."
+
+    if "edit" in msg and "transaction" in msg:
+        return "To edit a transaction, go to the Dashboard, find it in the Account Ledger table, and click the pencil icon."
+
+    if "delete" in msg and "transaction" in msg:
+        return "To delete a transaction, go to the Dashboard, find it in the Account Ledger table, and click the trash icon."
+
+    if "budget" in msg and ("set" in msg or "how" in msg):
+        return "You can set a category budget from the Dashboard under 'Set Category Budgets' — just enter a category and a limit amount."
+
+    if "subscription" in msg and ("add" in msg or "how" in msg):
+        return "You can add a recurring bill from the Dashboard under 'Recurring Bills' — enter the service name, cost, and billing cycle."
+
+    if "export" in msg or "csv" in msg or "download" in msg:
+        return "You can export all your transactions as a CSV file using the 'Export CSV' button on your Dashboard."
+
+    if "password" in msg:
+        return "You can change your password from the Profile page under 'Update Security Credentials'."
+
+    if "feedback" in msg or "bug" in msg or "report" in msg:
+        return "You can report a bug or suggest a feature from the Feedback page, accessible from the sidebar."
+
+    if "hello" in msg or "hi" in msg or "hey" in msg:
+        return "Hi! I can help with your balance, spending, budgets, subscriptions, or how to use Khata Kitab. What would you like to know?"
+
+    if "thank" in msg:
+        return "You're welcome! Let me know if there's anything else you need."
+
+    return "I'm not sure about that yet. I can help with your balance, income, expenses, budgets, subscriptions, or how to use features like adding transactions, exporting CSV, or changing your password."
+
+@app.route("/chatbot-query", methods=["POST"])
+@login_required
+def chatbot_query():
+    data = request.get_json(silent=True) or {}
+    user_message = data.get("message", "")
+    if not user_message.strip():
+        return jsonify({"reply": "Please type a question."})
+    reply = get_chatbot_reply(user_message, current_user.id)
+    return jsonify({"reply": reply})
 
 # ---- Prevent cached pages from showing after logout (back-button fix) ----
 @app.after_request

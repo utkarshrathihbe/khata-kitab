@@ -34,6 +34,22 @@
     <!-- Dark backdrop shown behind the sidebar when open on mobile -->
     <div id="mobileOverlay" onclick="toggleMobileMenu()" class="hidden fixed inset-0 bg-black/40 z-40 md:hidden"></div>
 
+    <!-- Shared flash messages, consumed here so they never leak to a later page -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="max-w-3xl mx-auto px-4 pt-4 space-y-2">
+            {% for category, message in messages %}
+            <div class="p-3.5 rounded-xl text-sm flex items-center gap-2.5 shadow-sm
+                {% if category == 'error' %}bg-rose-50 border border-rose-200 text-rose-700
+                {% else %}bg-emerald-50 border border-emerald-200 text-emerald-700{% endif %}">
+                <i class="fa-solid {% if category == 'error' %}fa-circle-exclamation{% else %}fa-circle-check{% endif %}"></i>
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% endwith %}
+
     <!-- Your child template pages inject their content right here -->
     {% block content %}
     {% endblock %}
@@ -87,13 +103,23 @@
             overlay.classList.toggle('hidden');
         }
 
+        function getGreeting() {
+            const hour = new Date().getHours();
+            let timeGreeting;
+            if (hour < 12) timeGreeting = "Good morning";
+            else if (hour < 17) timeGreeting = "Good afternoon";
+            else if (hour < 21) timeGreeting = "Good evening";
+            else timeGreeting = "Good night";
+            return timeGreeting + "! I can help with your balance, spending, budgets, subscriptions, or how to use Khata Kitab. What would you like to know?";
+        }
+
         function toggleChatbot() {
             const panel = document.getElementById('chatbotPanel');
             panel.classList.toggle('hidden');
             if (!panel.classList.contains('hidden')) {
                 const messages = document.getElementById('chatbotMessages');
                 if (messages.children.length === 0) {
-                    appendChatMessage("Hi! I can help with your balance, spending, budgets, subscriptions, or how to use Khata Kitab. What would you like to know?", "bot");
+                    appendChatMessage(getGreeting(), "bot");
                 }
                 document.getElementById('chatbotInput').focus();
             }

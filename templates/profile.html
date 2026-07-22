@@ -2,7 +2,6 @@
 {% block content %}
 <div class="min-h-screen flex w-full bg-[#f8fafc]">
 
-    <!-- Sidebar Navigation -->
     <aside class="w-64 bg-white border-r border-slate-200 p-6 flex flex-col justify-between hidden md:flex">
         <div>
             <a href="/dashboard" class="flex items-center gap-3 mb-10 px-2">
@@ -21,6 +20,9 @@
                 <a href="/profile" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-emerald-50 text-emerald-700 font-semibold transition-all">
                     <i class="fa-solid fa-user-gear text-lg"></i> Settings
                 </a>
+                <a href="/feedback" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium transition-all">
+                    <i class="fa-solid fa-comment-dots text-lg"></i> Feedback
+                </a>
             </nav>
         </div>
         <div class="border-t border-slate-100 pt-4">
@@ -30,7 +32,6 @@
         </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="flex-1 p-6 md:p-10 max-h-screen overflow-y-auto">
 
         <header class="mb-8">
@@ -38,20 +39,10 @@
             <p class="text-slate-500 text-sm mt-1">Manage your identity credentials and security preferences.</p>
         </header>
 
-        <!-- Flash Messages -->
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}
-                {% for message in messages %}
-                <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl flex items-center gap-3 shadow-sm">
-                    <i class="fa-solid fa-circle-check"></i> {{ message }}
-                </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+        <!-- Flash messages are now rendered once in base.html -->
 
         <div class="max-w-2xl space-y-6">
 
-            <!-- Personal Information -->
             <div class="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm">
                 <h2 class="text-lg font-bold mb-6 text-slate-800 flex items-center gap-2">
                     <i class="fa-regular fa-id-card text-emerald-600"></i> Personal Information
@@ -81,7 +72,6 @@
                 </form>
             </div>
 
-            <!-- Change Password -->
             <div class="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm">
                 <h2 class="text-lg font-bold mb-6 text-slate-800 flex items-center gap-2">
                     <i class="fa-solid fa-shield-halved text-indigo-600"></i> Update Security Credentials

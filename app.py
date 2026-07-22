@@ -1,6 +1,7 @@
 import io
 import os
 import base64
+import difflib
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -204,7 +205,7 @@ def feedback_page():
         message = (request.form.get("message") or "").strip()
 
         if not message:
-            flash("Please describe your feedback before submitting.")
+            flash("Please describe your feedback before submitting.", "error")
             return redirect(url_for('feedback_page'))
 
         entry = Feedback(
@@ -216,7 +217,7 @@ def feedback_page():
         )
         db.session.add(entry)
         db.session.commit()
-        flash("Thanks! Your feedback has been submitted.")
+        flash("Thanks! Your feedback has been submitted.", "success")
         return redirect(url_for('feedback_page'))
 
     my_feedback = Feedback.query.filter_by(user_id=current_user.id).order_by(Feedback.id.desc()).all()
@@ -236,10 +237,10 @@ def login_page():
 
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            flash("Welcome back to Khata Kitab!")
+            flash("Welcome back to Khata Kitab!", "success")
             return redirect(url_for('dashboard'))
         else:
-            flash("Invalid email or password.")
+            flash("Invalid email or password.", "error")
             return redirect(url_for('login_page'))
 
     return render_template("login.html")
@@ -255,20 +256,20 @@ def signup_page():
         password = request.form.get("password") or ""
 
         if not name or len(name) < 2:
-            flash("Please enter your full name.")
+            flash("Please enter your full name.", "error")
             return redirect(url_for('signup_page'))
 
         if "@" not in email or "." not in email.split("@")[-1]:
-            flash("Please enter a valid email address.")
+            flash("Please enter a valid email address.", "error")
             return redirect(url_for('signup_page'))
 
         if len(password) < 6:
-            flash("Password must be at least 6 characters long.")
+            flash("Password must be at least 6 characters long.", "error")
             return redirect(url_for('signup_page'))
 
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
-            flash("An account with this email already exists.")
+            flash("An account with this email already exists.", "error")
             return redirect(url_for('signup_page'))
 
         new_user = User(
@@ -280,7 +281,7 @@ def signup_page():
         db.session.commit()
 
         login_user(new_user)
-        flash("Account created successfully! Welcome to Khata Kitab.")
+        flash("Account created successfully! Welcome to Khata Kitab.", "success")
         return redirect(url_for('dashboard'))
 
     return render_template("signup.html")
@@ -289,7 +290,7 @@ def signup_page():
 @login_required
 def logout():
     logout_user()
-    flash("Logged out successfully.")
+    flash("Logged out successfully.", "success")
     return redirect(url_for('login_page'))
 
 @app.route("/forgot", methods=["GET", "POST"])
@@ -299,7 +300,7 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         # Always show the same message whether or not the email exists,
         # so we don't leak which emails are registered.
-        flash("If an account with that email exists, password reset instructions would be sent. (Email sending isn't set up yet.)")
+        flash("If an account with that email exists, password reset instructions would be sent. (Email sending isn't set up yet.)", "success")
         return redirect(url_for('login_page'))
 
     return '''
@@ -343,7 +344,7 @@ def add_transaction():
     )
     db.session.add(txn)
     db.session.commit()
-    flash("Transaction ledger sync operation successful!")
+    flash("Transaction ledger sync operation successful!", "success")
     return redirect(url_for('dashboard'))
 
 @app.route("/export")
@@ -370,7 +371,7 @@ def export_csv():
 def edit_transaction(txn_id):
     txn = Transaction.query.get_or_404(txn_id)
     if txn.user_id != current_user.id:
-        flash("You don't have permission to edit this transaction.")
+        flash("You don't have permission to edit this transaction.", "error")
         return redirect(url_for('dashboard'))
 
     if request.method == "POST":
@@ -380,7 +381,7 @@ def edit_transaction(txn_id):
         txn.category = request.form.get("category")
         txn.note = request.form.get("note")
         db.session.commit()
-        flash("Transaction updated successfully!")
+        flash("Transaction updated successfully!", "success")
         return redirect(url_for('dashboard'))
 
     return render_template("edit.html", txn=txn)
@@ -390,12 +391,12 @@ def edit_transaction(txn_id):
 def delete_transaction(txn_id):
     txn = Transaction.query.get(txn_id)
     if txn and txn.user_id != current_user.id:
-        flash("You don't have permission to delete this transaction.")
+        flash("You don't have permission to delete this transaction.", "error")
         return redirect(url_for('dashboard'))
     if txn:
         db.session.delete(txn)
         db.session.commit()
-    flash("Transaction deleted successfully!")
+    flash("Transaction deleted successfully!", "success")
     return redirect(url_for('dashboard'))
 
 @app.route("/cancel-subscription/<int:sub_id>")
@@ -403,12 +404,12 @@ def delete_transaction(txn_id):
 def cancel_subscription(sub_id):
     sub = Subscription.query.get(sub_id)
     if sub and sub.user_id != current_user.id:
-        flash("You don't have permission to cancel this subscription.")
+        flash("You don't have permission to cancel this subscription.", "error")
         return redirect(url_for('dashboard'))
     if sub:
         db.session.delete(sub)
         db.session.commit()
-    flash("Subscription cancelled successfully.")
+    flash("Subscription cancelled successfully.", "success")
     return redirect(url_for('dashboard'))
 
 @app.route("/add-subscription", methods=["POST"])
@@ -422,7 +423,7 @@ def add_subscription():
     )
     db.session.add(sub)
     db.session.commit()
-    flash("Subscription added successfully!")
+    flash("Subscription added successfully!", "success")
     return redirect(url_for('dashboard'))
 
 @app.route("/set-budget", methods=["POST"])
@@ -436,7 +437,7 @@ def set_budget():
     else:
         db.session.add(Budget(user_id=current_user.id, category=category, limit_amount=amount))
     db.session.commit()
-    flash(f"Budget for {category} set to Rs. {amount:,.2f}")
+    flash(f"Budget for {category} set to Rs. {amount:,.2f}", "success")
     return redirect(url_for('dashboard'))
 
 @app.route("/update-profile", methods=["POST"])
@@ -445,7 +446,7 @@ def update_profile():
     new_name = request.form.get("name")
     current_user.name = new_name
     db.session.commit()
-    flash("Personal operational configurations synchronized.")
+    flash("Personal operational configurations synchronized.", "success")
     return redirect(url_for('profile'))
 
 @app.route("/upload-profile-photo", methods=["POST"])
@@ -454,11 +455,11 @@ def upload_profile_photo():
     file = request.files.get("photo")
 
     if not file or file.filename == "":
-        flash("Please choose an image file to upload.")
+        flash("Please choose an image file to upload.", "error")
         return redirect(url_for('profile'))
 
     if not allowed_file(file.filename):
-        flash("Invalid file type. Please upload a PNG, JPG, GIF, or WEBP image.")
+        flash("Invalid file type. Please upload a PNG, JPG, GIF, or WEBP image.", "error")
         return redirect(url_for('profile'))
 
     ext = file.filename.rsplit('.', 1)[1].lower()
@@ -468,7 +469,7 @@ def upload_profile_photo():
 
     current_user.profile_pic = filename
     db.session.commit()
-    flash("Profile photo updated successfully!")
+    flash("Profile photo updated successfully!", "success")
     return redirect(url_for('profile'))
 
 @app.route("/change-password", methods=["POST"])
@@ -479,22 +480,35 @@ def change_password():
     confirm_pwd = request.form.get("confirm_password")
 
     if not check_password_hash(current_user.password_hash, current_pwd):
-        flash("Current password is incorrect.")
+        flash("Current password is incorrect.", "error")
         return redirect(url_for('profile'))
 
     if new_pwd != confirm_pwd:
-        flash("Password sync validation mismatch! Please verify inputs.")
+        flash("Password sync validation mismatch! Please verify inputs.", "error")
         return redirect(url_for('profile'))
 
     current_user.password_hash = generate_password_hash(new_pwd)
     db.session.commit()
-    flash("Security parameters successfully updated.")
+    flash("Security parameters successfully updated.", "success")
     return redirect(url_for('profile'))
 
 # ---- Chatbot Logic ----
 
+def fuzzy_in(keyword, msg_words, threshold=0.78):
+    keyword_words = keyword.split()
+    n = len(keyword_words)
+    if n == 0 or len(msg_words) < n:
+        return False
+    for i in range(len(msg_words) - n + 1):
+        window = " ".join(msg_words[i:i + n])
+        ratio = difflib.SequenceMatcher(None, window, keyword).ratio()
+        if ratio >= threshold:
+            return True
+    return False
+
 def get_chatbot_reply(message, user_id):
     msg = message.lower().strip()
+    msg_words = msg.split()
 
     txns = Transaction.query.filter_by(user_id=user_id).all()
     total_income = sum(t.amount for t in txns if t.transaction_type == 'Income')
@@ -502,29 +516,29 @@ def get_chatbot_reply(message, user_id):
     balance = total_income - total_expense
 
     # --- Data queries ---
-    if "balance" in msg:
+    if fuzzy_in("balance", msg_words):
         return f"Your current net balance is ₹{balance:,.2f}."
 
-    if "how much" in msg and ("spend" in msg or "spent" in msg):
+    if fuzzy_in("spend", msg_words) or fuzzy_in("spent", msg_words):
         categories = {}
         for t in txns:
             if t.transaction_type == 'Expense':
                 categories[t.category.lower()] = categories.get(t.category.lower(), 0) + t.amount
         for cat, amt in categories.items():
-            if cat in msg:
+            if fuzzy_in(cat, msg_words, threshold=0.72):
                 return f"You've spent ₹{amt:,.2f} on {cat.title()} so far."
         if categories:
             lines = [f"{c.title()}: ₹{a:,.2f}" for c, a in categories.items()]
             return "Here's your spending by category:\n" + "\n".join(lines)
         return "You don't have any recorded expenses yet."
 
-    if "income" in msg:
+    if fuzzy_in("income", msg_words):
         return f"Your total recorded income is ₹{total_income:,.2f}."
 
-    if "expense" in msg or "outflow" in msg:
+    if fuzzy_in("expense", msg_words) or fuzzy_in("outflow", msg_words):
         return f"Your total recorded expenses are ₹{total_expense:,.2f}."
 
-    if "budget" in msg:
+    if fuzzy_in("budget", msg_words):
         budgets = Budget.query.filter_by(user_id=user_id).all()
         if not budgets:
             return "You haven't set any budgets yet. You can set one from the Dashboard under 'Set Category Budgets'."
@@ -535,7 +549,7 @@ def get_chatbot_reply(message, user_id):
             lines.append(f"{b.category}: ₹{spent:,.2f} / ₹{b.limit_amount:,.2f} ({pct}%)")
         return "Here's your budget status:\n" + "\n".join(lines)
 
-    if "subscription" in msg or "recurring" in msg or "bill" in msg:
+    if fuzzy_in("subscription", msg_words) or fuzzy_in("recurring", msg_words) or fuzzy_in("bill", msg_words):
         subs = Subscription.query.filter_by(user_id=user_id).all()
         if not subs:
             return "You don't have any active subscriptions listed."
@@ -543,34 +557,47 @@ def get_chatbot_reply(message, user_id):
         return "Your active subscriptions:\n" + "\n".join(lines)
 
     # --- FAQ / how-to ---
-    if "add" in msg and "transaction" in msg:
+    has_add = fuzzy_in("add", msg_words)
+    has_edit = fuzzy_in("edit", msg_words)
+    has_delete = fuzzy_in("delete", msg_words)
+    has_transaction = fuzzy_in("transaction", msg_words, threshold=0.7)
+
+    if has_add and has_transaction:
         return "To add a transaction, go to the Dashboard and fill out the 'Record New Entry' form with date, type, amount, and category."
 
-    if "edit" in msg and "transaction" in msg:
+    if has_edit and has_transaction:
         return "To edit a transaction, go to the Dashboard, find it in the Account Ledger table, and click the pencil icon."
 
-    if "delete" in msg and "transaction" in msg:
+    if has_delete and has_transaction:
         return "To delete a transaction, go to the Dashboard, find it in the Account Ledger table, and click the trash icon."
 
-    if "budget" in msg and ("set" in msg or "how" in msg):
-        return "You can set a category budget from the Dashboard under 'Set Category Budgets' — just enter a category and a limit amount."
-
-    if "subscription" in msg and ("add" in msg or "how" in msg):
-        return "You can add a recurring bill from the Dashboard under 'Recurring Bills' — enter the service name, cost, and billing cycle."
-
-    if "export" in msg or "csv" in msg or "download" in msg:
+    if fuzzy_in("export", msg_words) or fuzzy_in("csv", msg_words) or fuzzy_in("download", msg_words):
         return "You can export all your transactions as a CSV file using the 'Export CSV' button on your Dashboard."
 
-    if "password" in msg:
+    if fuzzy_in("password", msg_words):
         return "You can change your password from the Profile page under 'Update Security Credentials'."
 
-    if "feedback" in msg or "bug" in msg or "report" in msg:
+    if fuzzy_in("feedback", msg_words) or fuzzy_in("bug", msg_words) or fuzzy_in("report", msg_words):
         return "You can report a bug or suggest a feature from the Feedback page, accessible from the sidebar."
 
-    if "hello" in msg or "hi" in msg or "hey" in msg:
+    has_good = fuzzy_in("good", msg_words)
+
+    if has_good and fuzzy_in("morning", msg_words, threshold=0.75):
+        return "Good morning! Hope you have a great day. How can I help with your khata today?"
+
+    if has_good and fuzzy_in("afternoon", msg_words, threshold=0.75):
+        return "Good afternoon! How can I help with your khata today?"
+
+    if has_good and fuzzy_in("evening", msg_words, threshold=0.75):
+        return "Good evening! How can I help with your khata today?"
+
+    if has_good and fuzzy_in("night", msg_words, threshold=0.75):
+        return "Good night! Don't forget to log today's expenses before you sleep. 😊"
+
+    if fuzzy_in("hello", msg_words) or fuzzy_in("hi", msg_words) or fuzzy_in("hey", msg_words):
         return "Hi! I can help with your balance, spending, budgets, subscriptions, or how to use Khata Kitab. What would you like to know?"
 
-    if "thank" in msg:
+    if fuzzy_in("thanks", msg_words) or fuzzy_in("thank you", msg_words):
         return "You're welcome! Let me know if there's anything else you need."
 
     return "I'm not sure about that yet. I can help with your balance, income, expenses, budgets, subscriptions, or how to use features like adding transactions, exporting CSV, or changing your password."

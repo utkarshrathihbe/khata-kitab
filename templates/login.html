@@ -25,11 +25,14 @@
             <p class="text-slate-500 text-sm mt-1">Log in to manage your digital ledger</p>
         </div>
         <!-- Flash Alert Messages Section -->
-        {% with messages = get_flashed_messages() %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                {% for message in messages %}
-                <div class="mb-5 p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2.5">
-                    <i class="fa-solid fa-circle-exclamation"></i> {{ message }}
+                {% for category, message in messages %}
+                <div class="mb-5 p-3.5 rounded-xl text-xs flex items-center gap-2.5
+                    {% if category == 'error' %}bg-rose-50 border border-rose-200 text-rose-700
+                    {% else %}bg-emerald-50 border border-emerald-200 text-emerald-700{% endif %}">
+                    <i class="fa-solid {% if category == 'error' %}fa-circle-exclamation{% else %}fa-circle-check{% endif %}"></i>
+                    {{ message }}
                 </div>
                 {% endfor %}
             {% endif %}

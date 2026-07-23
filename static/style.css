@@ -244,3 +244,47 @@ border-radius:16px;
 box-shadow:0 4px 12px rgba(0,0,0,0.06);
 text-align:center;
 }
+/* ---------- LANDING PAGE MOBILE ---------- */
+@media (max-width:768px){
+.landing-navbar{
+    padding:12px 20px 4px;
+    justify-content:center;
+}
+.landing-navbar .logo{
+    font-size:30px;
+}
+.landing-navbar > div:last-child{
+    display:none;
+}
+.hero{
+    padding-top:45px;
+}
+.hero h1{
+    font-size:28px;
+    line-height:1.3;
+}
+.hero p{
+    font-size:15px;
+    margin-bottom:15px;
+}
+.hero-buttons{
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    margin-bottom:10px;
+}
+.hero-buttons .hero-btn{
+    width:100%;
+    max-width:280px;
+    text-align:center;
+    box-sizing:border-box;
+    padding:12px 24px;
+    font-size:15px;
+}
+.features{
+    grid-template-columns:1fr;
+    margin:0 auto 20px;
+    padding:0 10px;
+    gap:12px;
+}
+}

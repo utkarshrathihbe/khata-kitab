@@ -2,7 +2,8 @@ import io
 import os
 import base64
 import difflib
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_sqlalchemy import SQLAlchemy
@@ -42,6 +43,8 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String, unique=True, nullable=False)
     password_hash = db.Column(db.String, nullable=False)
     profile_pic = db.Column(db.String, nullable=True)
+    reset_token = db.Column(db.String, nullable=True)
+    reset_token_expiry = db.Column(db.DateTime, nullable=True)
 
 class Transaction(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -295,39 +298,56 @@ def logout():
 
 @app.route("/forgot", methods=["GET", "POST"])
 def forgot_password():
+    token = None
     if request.method == "POST":
         email = (request.form.get("email") or "").strip().lower()
         user = User.query.filter_by(email=email).first()
-        # Always show the same message whether or not the email exists,
-        # so we don't leak which emails are registered.
-        flash("If an account with that email exists, password reset instructions would be sent. (Email sending isn't set up yet.)", "success")
+
+        if user:
+            token = secrets.token_hex(4).upper()  # 8-character token, e.g. "A1B2C3D4"
+            user.reset_token = token
+            user.reset_token_expiry = datetime.utcnow() + timedelta(minutes=15)
+            db.session.commit()
+        else:
+            flash("If an account with that email exists, a reset token has been generated.", "success")
+            return redirect(url_for('forgot_password'))
+
+    return render_template("forgot.html", token=token)
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password():
+    if request.method == "POST":
+        email = (request.form.get("email") or "").strip().lower()
+        token = (request.form.get("token") or "").strip().upper()
+        new_pwd = request.form.get("new_password") or ""
+        confirm_pwd = request.form.get("confirm_password") or ""
+
+        user = User.query.filter_by(email=email).first()
+
+        if not user or user.reset_token != token:
+            flash("Invalid email or reset token.", "error")
+            return redirect(url_for('reset_password'))
+
+        if not user.reset_token_expiry or datetime.utcnow() > user.reset_token_expiry:
+            flash("This reset token has expired. Please request a new one.", "error")
+            return redirect(url_for('forgot_password'))
+
+        if len(new_pwd) < 6:
+            flash("Password must be at least 6 characters long.", "error")
+            return redirect(url_for('reset_password'))
+
+        if new_pwd != confirm_pwd:
+            flash("Passwords do not match.", "error")
+            return redirect(url_for('reset_password'))
+
+        user.password_hash = generate_password_hash(new_pwd)
+        user.reset_token = None
+        user.reset_token_expiry = None
+        db.session.commit()
+        flash("Password reset successfully! You can now log in.", "success")
         return redirect(url_for('login_page'))
 
-    return '''
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-        <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
-        <title>Forgot Password | Khata Kitab</title>
-    </head>
-    <body class="bg-[#f8fafc] flex items-center justify-center min-h-screen font-['Plus_Jakarta_Sans']">
-        <div class="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm w-full max-w-md">
-            <h2 class="text-2xl font-bold mb-2 text-slate-800 text-center">Reset Password</h2>
-            <p class="text-slate-500 text-sm mb-6 text-center">Enter your email and we will send reset instructions.</p>
-            <form method="POST" class="space-y-4">
-                <input type="email" name="email" placeholder="name@company.com" required
-                       class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-800 focus:outline-none focus:border-emerald-600 focus:bg-white transition-all">
-                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-xl text-sm transition-all cursor-pointer">
-                    Send Reset Instructions
-                </button>
-            </form>
-            <p class="text-center mt-6 text-sm"><a href="/login" class="text-emerald-600 font-semibold hover:underline">Back to Login</a></p>
-        </div>
-    </body>
-    </html>
-    '''
+    return render_template("reset_password.html")
 
 # ---- Form Actions & Handle Submissions ----
 
